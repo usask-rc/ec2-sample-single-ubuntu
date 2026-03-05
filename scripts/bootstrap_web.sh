@@ -22,16 +22,17 @@ MOUNTS=("/etc/letsencrypt" "/var/www")
 ROOT_PART=$(findmnt -n -o SOURCE /)
 ROOT_DEV="${ROOT_PART}"
 if [[ ${ROOT_PART} == *"n1" ]]; then
-  # root device is named like "/dev/nvme0n1"
+  # root partition is named like "/dev/nvme0n1"
   ROOT_DEV="${ROOT_PART%n1}"
 fi
 if [[ ${ROOT_PART} == *"p1" ]]; then
-  # root device is named like "/dev/xvdap1"
+  # root partition is named like "/dev/xvdap1" or "/dev/nvme0n1p1"
   ROOT_DEV="${ROOT_PART%p1}"
 fi
 
 echo "Root partition: ${ROOT_PART}" >> /var/log/userdata.log
 echo "Root device: ${ROOT_DEV}" >> /var/log/userdata.log
+echo "" >> /var/log/userdata.log
 
 # Loop through all AWS nvme devices except root device
 # For each nvme device, create a symlink with the desired mount device name
@@ -39,9 +40,9 @@ for NVME in `find /dev | grep -e 'nvme[0-9]\+n1$' | grep -v $ROOT_DEV`
 do
   echo "Working on: ${NVME}" >> /var/log/userdata.log
   # get ebs block mapping device path
-  SRCDEV=$(nvme id-ctrl -v "${NVME}" | grep -Po '/dev/xvd[b-z]')
+  SRCDEV=$(nvme id-ctrl -V "${NVME}" | grep -Po '/dev/xvd[b-z]')
   if [ "x" == "x${SRCDEV}" ] ; then
-    SRCDEV=$(nvme id-ctrl -v "${NVME}" | grep -Po '/dev/sd[b-z]')
+    SRCDEV=$(nvme id-ctrl -V "${NVME}" | grep -Po '/dev/sd[b-z]')
   fi
 
   if [ "x" == "x${SRCDEV}" ] ; then
@@ -59,12 +60,14 @@ do
           ln -s ${NVME} ${SRCDEV}
       fi
     elif [ -e ${SRCDEV} ] ; then
-      echo "${SRCDEV} is not a link, cannot touch it" >> /var/log/userdata.log
+      echo "${SRCDEV} is not a link, not modifying it" >> /var/log/userdata.log
+      echo `file ${SRCDEV}` >> /var/log/userdata.log
     else
       echo "${SRCDEV} is missing, creating a link now" >> /var/log/userdata.log
       ln -s ${NVME} ${SRCDEV}
     fi
   fi
+  echo "" >> /var/log/userdata.log
 done
 
 # Relate the device name to the mount point
@@ -112,6 +115,8 @@ do
   # Clear vars for next loop
   MPATH=""
   MDEV=""
+  echo "" >> /var/log/userdata.log
 done
 
+systemctl daemon-reload
 mount -a
