@@ -9,8 +9,8 @@ environment_name = "ec2sample"
 ec2_web_name = "web"
 
 # The VPC and subnet to deploy into; copy these values from the VPC in your account
-vpc_id    = "vpc-0ad9809963d81992b"
-subnet_id = "subnet-09364b07cfe5f9f7a"
+vpc_id    = ""
+subnet_id = ""
 
 # t2.micro = 1 VCPU / 1 GB RAM / x86_64
 # t3.micro = 2 VCPU / 1 GB RAM / x86_64
@@ -26,4 +26,4 @@ deploy_region       = "ca-central-1"
 deploy_zone         = "ca-central-1a"
 
 # This value must match what is in provider.tf
-tfstate_bucket_name = "tfstate-tat380-ec2-ubuntu"
+tfstate_bucket_name = "tfstate-ec2-ubuntu"

@@ -26,7 +26,7 @@ if [[ ${ROOT_PART} == *"n1" ]]; then
   ROOT_DEV="${ROOT_PART%n1}"
 fi
 if [[ ${ROOT_PART} == *"p1" ]]; then
-  # root device is named like "/dev/xvdap1" or "/dev/xvda1"
+  # root device is named like "/dev/xvdap1"
   ROOT_DEV="${ROOT_PART%p1}"
 fi
 
@@ -39,24 +39,31 @@ for NVME in `find /dev | grep -e 'nvme[0-9]\+n1$' | grep -v $ROOT_DEV`
 do
   echo "Working on: ${NVME}" >> /var/log/userdata.log
   # get ebs block mapping device path
-  SRCDEV=$(nvme id-ctrl -v "${NVME}"| grep -Po '/dev/xvd[b-z]')
-  echo "Target device: ${SRCDEV}" >> /var/log/userdata.log
+  SRCDEV=$(nvme id-ctrl -v "${NVME}" | grep -Po '/dev/xvd[b-z]')
+  if [ "x" == "x${SRCDEV}" ] ; then
+    SRCDEV=$(nvme id-ctrl -v "${NVME}" | grep -Po '/dev/sd[b-z]')
+  fi
 
-  if [ -L ${SRCDEV} ] ; then
-    if [ -e ${SRCDEV} ] ; then
-        echo "${SRCDEV} is a good link, target is:" >> /var/log/userdata.log
-        echo `ls -ld ${SRCDEV}` >> /var/log/userdata.log
-    else
-        echo "${SRCDEV} is a broken link, removing it now" >> /var/log/userdata.log
-        rm -f ${SRCDEV}
-        echo "${SRCDEV} is missing, creating a link now" >> /var/log/userdata.log
-        ln -s ${NVME} ${SRCDEV}
-    fi
-  elif [ -e ${SRCDEV} ] ; then
-    echo "${SRCDEV} is not a link, cannot touch it" >> /var/log/userdata.log
+  if [ "x" == "x${SRCDEV}" ] ; then
+    echo "Could not find non-NVME device in NVME metadata, skipping" >> /var/log/userdata.log
   else
-    echo "${SRCDEV} is missing, creating a link now" >> /var/log/userdata.log
-    ln -s ${NVME} ${SRCDEV}
+    echo "Target device: ${SRCDEV}" >> /var/log/userdata.log
+    if [ -L ${SRCDEV} ] ; then
+      if [ -e ${SRCDEV} ] ; then
+          echo "${SRCDEV} is a good link, target is:" >> /var/log/userdata.log
+          echo `ls -ld ${SRCDEV}` >> /var/log/userdata.log
+      else
+          echo "${SRCDEV} is a broken link, removing it now" >> /var/log/userdata.log
+          rm -f ${SRCDEV}
+          echo "${SRCDEV} is missing, creating a link now" >> /var/log/userdata.log
+          ln -s ${NVME} ${SRCDEV}
+      fi
+    elif [ -e ${SRCDEV} ] ; then
+      echo "${SRCDEV} is not a link, cannot touch it" >> /var/log/userdata.log
+    else
+      echo "${SRCDEV} is missing, creating a link now" >> /var/log/userdata.log
+      ln -s ${NVME} ${SRCDEV}
+    fi
   fi
 done
 
@@ -98,11 +105,13 @@ do
     else
       echo "Mount for block ID ${BLK_ID} is already in fstab" >> /var/log/userdata.log
     fi
-
-    # Clear vars for next loop
-    MPATH=""
-    MDEV=""
+  else
+    echo "${MDEV} was not found" >> /var/log/userdata.log
   fi
+
+  # Clear vars for next loop
+  MPATH=""
+  MDEV=""
 done
 
 mount -a
